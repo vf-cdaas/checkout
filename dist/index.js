@@ -5498,7 +5498,7 @@ class GitAuthHelper {
                 const configPaths = output.match(/(?<=(^|\n)file:)[^\t]+(?=\tremote\.origin\.url)/g) || [];
                 for (const configPath of configPaths) {
                     core.debug(`Replacing token placeholder in '${configPath}'`);
-                    this.replaceTokenPlaceholder(configPath);
+                    yield this.replaceTokenPlaceholder(configPath);
                 }
                 if (this.settings.sshKey) {
                     // Configure core.sshCommand
@@ -5883,9 +5883,11 @@ class GitCommandManager {
             yield this.execGit(['lfs', 'install', '--local']);
         });
     }
-    log1() {
+    log1(format) {
         return __awaiter(this, void 0, void 0, function* () {
-            const output = yield this.execGit(['log', '-1']);
+            var args = format ? ['log', '-1', format] : ['log', '-1'];
+            var silent = format ? false : true;
+            const output = yield this.execGit(args, false, silent);
             return output.stdout;
         });
     }
@@ -6007,7 +6009,7 @@ class GitCommandManager {
             return result;
         });
     }
-    execGit(args, allowAllExitCodes = false) {
+    execGit(args, allowAllExitCodes = false, silent = false) {
         return __awaiter(this, void 0, void 0, function* () {
             fshelper.directoryExistsSync(this.workingDirectory, true);
             const result = new GitOutput();
@@ -6022,6 +6024,7 @@ class GitCommandManager {
             const options = {
                 cwd: this.workingDirectory,
                 env,
+                silent,
                 ignoreReturnCode: allowAllExitCodes,
                 listeners: {
                     stdout: (data) => {
@@ -6267,8 +6270,10 @@ function getSource(settings) {
                     yield authHelper.removeGlobalAuth();
                 }
             }
-            // Dump some info about the checked out commit
+            // Get commit information
             const commitInfo = yield git.log1();
+            // Log commit sha
+            yield git.log1("--format='%H'");
             // Check for incorrect pull request merge commit
             yield refHelper.checkCommitInfo(settings.authToken, commitInfo, settings.repositoryOwner, settings.repositoryName, settings.ref, settings.commit);
         }
@@ -9589,7 +9594,7 @@ function downloadRepository(authToken, owner, repo, ref, commit, repositoryPath)
         else {
             yield toolCache.extractTar(archivePath, extractPath);
         }
-        io.rmRF(archivePath);
+        yield io.rmRF(archivePath);
         // Determine the path of the repository content. The archive contains
         // a top-level folder and the repository content is inside.
         const archiveFileNames = yield fs.promises.readdir(extractPath);
@@ -9608,7 +9613,7 @@ function downloadRepository(authToken, owner, repo, ref, commit, repositoryPath)
                 yield io.mv(sourcePath, targetPath);
             }
         }
-        io.rmRF(extractPath);
+        yield io.rmRF(extractPath);
     });
 }
 exports.downloadRepository = downloadRepository;
